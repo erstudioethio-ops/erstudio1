@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ER Photo Studio — Bookings (v2)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    .hidden { display: none; }
+    /* small image preview fix */
+    .profile-pic { width:44px; height:44px; border-radius:9999px; object-fit:cover; }
+  </style>
+</head>
+<body class="bg-gray-100 p-4 min-h-screen">
+  <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <img id="header-profile-pic" src="" alt="Profile" class="profile-pic hidden" />
+        <div>
+          <h1 class="text-2xl font-bold">ER Photo Studio — Bookings</h1>
+          <p class="text-sm text-gray-600">Local demo with reminders, OTP entry, profile picture, phone & payments.</p>
+        </div>
+      </div>
+      <div>
+        <button id="profile-btn" class="px-3 py-1 bg-gray-200 rounded">Show Profile</button>
+      </div>
+    </div>
+
+    <div id="profile-panel" class="hidden bg-indigo-50 border border-indigo-200 p-4 rounded mb-4">
+      <div class="flex items-center gap-4">
+        <img id="profile-pic" src="" alt="Profile Pic" class="profile-pic hidden" />
+        <div>
+          <div class="flex items-center gap-2">
+            <strong id="profile-name" class="text-indigo-800">User</strong>
+          </div>
+          <p class="text-sm text-indigo-700">Password: <span class="font-mono">Erstudio@100#</span> (One-time password for all users)</p>
+          <p class="mt-2 text-sm text-gray-700"><strong>Bookings created:</strong> <span id="profile-bookings-count">0</span></p>
+        </div>
+      </div>
+      <div class="mt-3">
+        <label class="block text-sm text-indigo-700">Upload/Change Profile Picture</label>
+        <input id="profile-upload" type="file" accept="image/*" class="mt-2" />
+      </div>
+    </div>
+
+    <form id="booking-form" class="bg-gray-50 p-4 rounded mb-6">
+      <input type="hidden" id="editingId" />
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm">Client Name</label>
+          <input id="clientName" required class="w-full p-2 rounded border" />
+        </div>
+
+        <div>
+          <label class="block text-sm">Phone</label>
+          <input id="phone" type="tel" placeholder="+2519..." class="w-full p-2 rounded border" />
+        </div>
+        <div>
+          <label class="block text-sm">Date (Gregorian)</label>
+          <input id="date" type="date" required class="w-full p-2 rounded border" />
+          <p id="ethiopic-preview" class="mt-1 text-xs text-indigo-600">🇪🇹 Ethiopian Date Preview</p>
+        </div>
+        <div>
+          <label class="block text-sm">Time</label>
+          <input id="time" type="time" required class="w-full p-2 rounded border" />
+        </div>
+
+        <div>
+          <label class="block text-sm">Service</label>
+          <select id="service" class="w-full p-2 rounded border">
+            <option>Photography</option>
+            <option>Videography</option>
+            <option>Both</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm">Status</label>
+          <select id="status" class="w-full p-2 rounded border">
+            <option>Pending</option>
+            <option>Confirmed</option>
+            <option>Completed</option>
+            <option>Cancelled</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm">Total Price (agreed)</label>
+          <input id="price" type="number" min="0" step="0.01" class="w-full p-2 rounded border" />
+        </div>
+
+        <div>
+          <label class="block text-sm">Prepaid</label>
+          <input id="prepaid" type="number" min="0" step="0.01" class="w-full p-2 rounded border" />
+        </div>
+
+        <div>
+          <label class="block text-sm">Remaining</label>
+          <input id="remaining" type="text" readonly class="w-full p-2 rounded border bg-gray-100" />
+        </div>
+
+        <div class="sm:col-span-2">
+          <label class="block text-sm">Notes</label>
+          <textarea id="notes" rows="2" class="w-full p-2 rounded border"></textarea>
+        </div>
+      </div>
+
+      <div class="mt-4 flex justify-end gap-2">
+        <button type="button" id="reset-btn" class="px-4 py-2 rounded border bg-white">Reset</button>
+        <button type="submit" class="px-4 py-2 rounded bg-indigo-600 text-white">Save Booking</button>
+      </div>
+    </form>
+
+    <div class="flex items-center gap-3 mb-4">
+      <input id="search-input" placeholder="Search by name, phone, service, notes, status..." class="flex-1 p-2 rounded border" />
+      <button id="clear-all" class="px-3 py-2 bg-red-500 text-white rounded">Clear All</button>
+    </div>
+
+    <div id="bookings-list" class="space-y-3">
+      <p class="text-center text-gray-500">No bookings yet.</p>
+    </div>
+  </div>
+
+  <div id="otp-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50" style="display: none;">
+    <div class="bg-white p-6 rounded-lg w-full max-w-sm">
+      <h2 class="text-lg font-semibold mb-2">Enter One-Time Password</h2>
+      <p class="text-sm text-gray-600 mb-4">Please enter the shared password to access the app.</p>
+      <input id="otp-input" type="password" class="w-full p-2 rounded border mb-3" placeholder="Password" />
+      <div class="flex justify-end gap-2">
+        <button id="otp-submit" class="px-4 py-2 bg-indigo-600 text-white rounded">Submit</button>
+      </div>
+      <p id="otp-error" class="text-red-500 text-sm mt-2 hidden">Incorrect password</p>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed right-4 bottom-4 bg-green-500 text-white px-4 py-2 rounded shadow hidden"></div>
+
+<script>
+  // === Configuration ==========
+  const STORAGE_KEY = 'er_bookings_v2';
+  const PROFILE_KEY = 'er_profile_v2';
+  const REMINDER_THRESHOLDS_MIN = [7*24*60, 3*24*60, 1*24*60, 60]; // minutes: 7d,3d,1d,1h
+  const OTP_PASSWORD = 'Erstudio@100#';
+
+  // ========== Simple Ethiopian conversion (same approach) ==========
+  function toEthiopian(year, month, day) {
+    const jdn = Math.floor((1461 * (year + 4000 + Math.floor((month - 14) / 12))) / 4) +
+                Math.floor((367 * (month - 2 - 12 * Math.floor((month - 9) / 7))) / 12) -
+                Math.floor((3 * Math.floor((year + 4000 + Math.floor((month - 14) / 12)) / 100)) / 4) +
+                day - 781521;
+    let r = (jdn + 6) % 7;
+    let n = (jdn - 1723856) % 1461;
+    let ethiopianYear = 1 + Math.floor(4 * Math.floor((jdn - 1723856) / 1461) + n / 365);
+    let n_mod = n % 365;
+    let ethiopianMonth = Math.floor(n_mod / 30) + 1;
+    let ethiopianDay = (n_mod % 30) + 1;
+    const monthNames = ["መስከረም","ጥቅምት","ኅዳር","ታኅሣሥ","ጥር","የካቲት","መጋቢት","ሚያዝያ","ግንቦት","ሰኔ","ሐምሌ","ነሐሴ","ጳጉሜን"];
+    const weekDays = ["ሰኞ","ማክሰኞ","ረቡዕ","ሐሙስ","አርብ","ቅዳሜ","እሁድ"];
+    return { year: ethiopianYear, month: ethiopianMonth, day: ethiopianDay, monthName: monthNames[ethiopianMonth-1], weekDay: weekDays[r] };
+  }
+
+  // ========== Storage helpers ==========
+  function loadBookings() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function saveBookings(list) { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
+  function loadProfile() {
+    try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}'); }
+    catch (e) { return {}; }
+  }
+  function saveProfile(p) { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); }
+
+  // ========== DOM refs ==========
+  const form = document.getElementById('booking-form');
+  const listEl = document.getElementById('bookings-list');
+  const searchInput = document.getElementById('search-input');
+  const dateInput = document.getElementById('date');
+  const ethiopicPreview = document.getElementById('ethiopic-preview');
+  const prepaidInput = document.getElementById('prepaid');
+  const priceInput = document.getElementById('price');
+  const remainingInput = document.getElementById('remaining');
+  const profileBtn = document.getElementById('profile-btn');
+  const profilePanel = document.getElementById('profile-panel');
+  const profileBookingsCount = document.getElementById('profile-bookings-count');
+  const profileUpload = document.getElementById('profile-upload');
+  const profilePic = document.getElementById('profile-pic');
+  const headerProfilePic = document.getElementById('header-profile-pic');
+  const profileName = document.getElementById('profile-name');
+  const otpModal = document.getElementById('otp-modal');
+  const otpInput = document.getElementById('otp-input');
+  const otpSubmit = document.getElementById('otp-submit');
+  const otpError = document.getElementById('otp-error');
+  const toastEl = document.getElementById('toast');
+
+  let bookings = loadBookings();
+  let profile = loadProfile();
+
+  // Migrate older bookings key if present (optional)
+  if (!localStorage.getItem(STORAGE_KEY) && localStorage.getItem('er_bookings_v1')) {
+    try {
+      const old = JSON.parse(localStorage.getItem('er_bookings_v1'));
+      if (Array.isArray(old)) {
+        bookings = old.map(b => ({ ...b, sentReminders: b.sentReminders || [] }));
+        saveBookings(bookings);
+      }
+    } catch(e){}
+  }
+
+  // ========== Utility ==========
+  function escapeHtml(s){ 
+      return String(s||'').replace(/[&<>"']/g, c=>({ 
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' 
+      }[c])); 
+  }
+  function showToast(msg, color='green'){
+    toastEl.textContent = msg;
+    toastEl.style.backgroundColor = color === 'red' ? '#ef4444' : '#10b981';
+    toastEl.classList.remove('hidden');
+    setTimeout(()=> toastEl.classList.add('hidden'), 2800);
+  }
+  function formatTime(t) {
+    if (!t) return '';
+    const dt = new Date('2000-01-01T' + t);
+    return dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  }
+
+  // ========== Reminders ==========
+  function ensureSentReminders(arrBooking) {
+    if (!Array.isArray(arrBooking.sentReminders)) arrBooking.sentReminders = [];
+  }
+
+  // Request Notification permission once (optional)
+  function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then(() => {});
+    }
+  }
+
+  function sendBrowserNotification(title, body) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body });
+    }
+  }
+
+  function checkRemindersNow() {
+    const now = new Date();
+    bookings.forEach(b => {
+      // only consider upcoming bookings with valid date & time
+      if (!b.date || !b.time) return;
+      ensureSentReminders(b);
+      const dt = new Date(b.date + 'T' + b.time);
+      if (isNaN(dt)) return;
+      const diffMin = Math.round((dt - now) / 60000); // minutes until booking
+      REMINDER_THRESHOLDS_MIN.forEach(th => {
+        if (diffMin <= th && diffMin >= -60) { // allow reminders even if slightly past (app was closed)
+          // if not yet sent threshold
+          if (!b.sentReminders.includes(th)) {
+            // send reminder
+            const dayLabel = th >= 24*60 ? Math.round(th/(24*60)) + ' day(s)' : (th >= 60 ? Math.round(th/60) + ' hour(s)' : th + ' min');
+            const title = `Upcoming booking: ${b.clientName}`;
+            const body = `In ${dayLabel} (threshold ${th} min). ${b.date} ${b.time} • ${b.service}`;
+            showToast(`Reminder: ${b.clientName} — ${body}`);
+            sendBrowserNotification(title, body);
+            b.sentReminders.push(th);
+            saveBookings(bookings);
+          }
+        }
+      });
+    });
+  }
+
+  // Poll reminders every minute
+  setInterval(checkRemindersNow, 60 * 1000);
+  // Also run once on load
+  setTimeout(checkRemindersNow, 1500);
+
+  // ========== Rendering ==========
+  function renderList(filter='') {
+    const q = (filter || '').toLowerCase();
+    const filtered = bookings.filter(b => {
+      const haystack = [b.clientName, b.service, b.notes, b.status, b.phone].join(' ').toLowerCase();
+      return !q || haystack.includes(q);
+    }).sort((a,b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
+
+    listEl.innerHTML = '';
+    if (!filtered.length) {
+      listEl.innerHTML = '<p class="text-center text-gray-500">No bookings yet.</p>';
+      profileBookingsCount.textContent = bookings.length;
+      return;
+    }
+    filtered.forEach(b => {
+      const dt = new Date(b.date + 'T' + b.time);
+      const et = (() => {
+        try { const e = toEthiopian(dt.getFullYear(), dt.getMonth()+1, dt.getDate()); return `${e.weekDay}, ${e.monthName} ${e.day}, ${e.year} ዓ.ም`; }
+        catch { return ''; }
+      })();
+      const remaining = (Number(b.price || 0) - Number(b.prepaid || 0)).toFixed(2);
+      const card = document.createElement('div');
+      card.className = 'p-4 rounded border bg-white shadow flex flex-col sm:flex-row sm:justify-between gap-2';
+      card.innerHTML = `
+        <div class="flex-1">
+          <div class="flex items-center justify-between gap-2">
+            <strong class="text-lg">${escapeHtml(b.clientName)}</strong>
+            <div class="flex gap-2">
+              <button data-id="${b.id}" data-action="edit" class="text-blue-600">Edit</button>
+              <button data-id="${b.id}" data-action="del" class="text-red-600">Delete</button>
+            </div>
+          </div>
+          <div class="text-sm text-gray-600 mt-1">
+            ${escapeHtml(b.date)} • ${formatTime(b.time)} • <span class="text-indigo-600">${escapeHtml(b.service)}</span>
+          </div>
+          <div class="text-xs text-indigo-700 mt-1">🇪🇹 ${et}</div>
+          <div class="mt-2 text-sm text-gray-700">Phone: ${escapeHtml(b.phone || '')}</div>
+          <div class="mt-1 text-sm text-gray-700">Price: ${Number(b.price||0).toFixed(2)} | Prepaid: ${Number(b.prepaid||0).toFixed(2)} | Remaining: ${remaining}</div>
+          ${b.notes ? `<div class="text-sm text-gray-700 mt-2">Notes: ${escapeHtml(b.notes)}</div>` : ''}
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="text-sm">Status:</div>
+          <select data-id="${b.id}" class="status-updater p-1 border rounded">
+            <option ${b.status==='Pending'?'selected':''}>Pending</option>
+            <option ${b.status==='Confirmed'?'selected':''}>Confirmed</option>
+            <option ${b.status==='Completed'?'selected':''}>Completed</option>
+            <option ${b.status==='Cancelled'?'selected':''}>Cancelled</option>
+          </select>
+        </div>
+      `;
+      listEl.appendChild(card);
+    });
+    profileBookingsCount.textContent = bookings.length;
+  }
+
+  // ========== Form logic ==========
+  function updateRemainingPreview() {
+    const p = Number(priceInput.value || 0);
+    const pre = Number(prepaidInput.value || 0);
+    const rem = Math.max(0, p - pre);
+    remainingInput.value = rem.toFixed(2);
+  }
+
+  dateInput.addEventListener('input', updateEthiopianPreview);
+  prepaidInput.addEventListener('input', updateRemainingPreview);
+  priceInput.addEventListener('input', updateRemainingPreview);
+
+  function updateEthiopianPreview(){
+    const v = dateInput.value;
+    if (!v) { ethiopicPreview.textContent = '🇪🇹 Ethiopian Date Preview'; return; }
+    const [y,m,d] = v.split('-').map(Number);
+    try {
+      const e = toEthiopian(y,m,d);
+      ethiopicPreview.textContent = `🇪🇹 ${e.weekDay}, ${e.monthName} ${e.day}, ${e.year} ዓ.ም`;
+    } catch {
+      ethiopicPreview.textContent = 'Invalid date';
+    }
+  }
+
+  form.addEventListener('submit', e=>{
+    e.preventDefault();
+    const id = document.getElementById('editingId').value || String(Date.now());
+    const newBooking = {
+      id,
+      clientName: document.getElementById('clientName').value.trim(),
+      phone: document.getElementById('phone').value.trim(),
+      date: document.getElementById('date').value,
+      time: document.getElementById('time').value,
+      service: document.getElementById('service').value,
+      status: document.getElementById('status').value,
+      price: Number(document.getElementById('price').value || 0),
+      prepaid: Number(document.getElementById('prepaid').value || 0),
+      notes: document.getElementById('notes').value.trim(),
+      createdAt: new Date().toISOString(),
+      sentReminders: [] // reset reminders for new/updated booking
+    };
+    // validate basic
+    if (!newBooking.clientName || !newBooking.date || !newBooking.time) {
+      showToast('Please fill client name, date and time', 'red');
+      return;
+    }
+    const idx = bookings.findIndex(b => b.id === id);
+    if (idx >= 0) bookings[idx] = newBooking;
+    else bookings.push(newBooking);
+    saveBookings(bookings);
+    form.reset();
+    document.getElementById('editingId').value = '';
+    updateRemainingPreview();
+    renderList(searchInput.value);
+    showToast(idx>=0 ? 'Booking updated' : 'Booking added');
+    // Immediately check reminders after add/update
+    setTimeout(checkRemindersNow, 500);
+  });
+
+  // Edit/Delete/Status handlers (delegation)
+  listEl.addEventListener('click', e=>{
+    const action = e.target.dataset.action;
+    const id = e.target.dataset.id;
+    if (!action || !id) return;
+    if (action === 'del') {
+      if (!confirm('Delete booking?')) return;
+      bookings = bookings.filter(b => b.id !== id);
+      saveBookings(bookings);
+      renderList(searchInput.value);
+      showToast('Deleted', 'red');
+    } else if (action === 'edit') {
+      const b = bookings.find(x => x.id === id);
+      if (!b) return;
+      document.getElementById('editingId').value = b.id;
+      document.getElementById('clientName').value = b.clientName;
+      document.getElementById('phone').value = b.phone || '';
+      document.getElementById('date').value = b.date;
+      document.getElementById('time').value = b.time;
+      document.getElementById('service').value = b.service;
+      document.getElementById('status').value = b.status || 'Pending';
+      document.getElementById('price').value = (b.price || 0);
+      document.getElementById('prepaid').value = (b.prepaid || 0);
+      document.getElementById('notes').value = b.notes || '';
+      updateRemainingPreview();
+      updateEthiopianPreview();
+      window.scrollTo({top:0, behavior:'smooth'});
+    }
+  });
+
+  // Status update
+  listEl.addEventListener('change', e=>{
+    if (!e.target.classList.contains('status-updater')) return;
+    const id = e.target.dataset.id;
+    const b = bookings.find(x=>x.id===id);
+    if (!b) return;
+    b.status = e.target.value;
+    saveBookings(bookings);
+    showToast('Status updated');
+  });
+
+  // Search & actions
+  searchInput.addEventListener('input', ()=> renderList(searchInput.value));
+  document.getElementById('reset-btn').addEventListener('click', ()=> { form.reset(); document.getElementById('editingId').value=''; updateRemainingPreview(); updateEthiopianPreview(); });
+  document.getElementById('clear-all').addEventListener('click', ()=>{
+    if (!confirm('Clear all bookings?')) return;
+    bookings = []; saveBookings(bookings); renderList(); showToast('All cleared', 'red');
+  });
+
+  // ========== Profile handling ==========
+  profileBtn.addEventListener('click', ()=> {
+    profilePanel.classList.toggle('hidden');
+    profileBtn.textContent = profilePanel.classList.contains('hidden') ? 'Show Profile' : 'Hide Profile';
+  });
+
+  function refreshProfileUI() {
+    if (profile && profile.picDataUrl) {
+      profilePic.src = headerProfilePic.src = profile.picDataUrl;
+      profilePic.classList.remove('hidden');
+      headerProfilePic.classList.remove('hidden');
+    } else {
+      profilePic.classList.add('hidden');
+      headerProfilePic.classList.add('hidden');
+    }
+    profileName.textContent = profile.name || 'User';
+    profileBookingsCount.textContent = bookings.length;
+  }
+
+  profileUpload.addEventListener('change', (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    const fr = new FileReader();
+    fr.onload = (e) => {
+      profile.picDataUrl = e.target.result;
+      saveProfile(profile);
+      refreshProfileUI();
+      showToast('Profile picture saved');
+    };
+    fr.readAsDataURL(f);
+  });
+
+  // ========== OTP modal (simple) ==========
+  function checkSessionAuth() {
+    return sessionStorage.getItem('er_auth') === '1';
+  }
+  function hideOtpModal() { otpModal.style.display = 'none'; }
+  function showOtpModal() { otpModal.style.display = 'flex'; otpInput.value=''; otpError.classList.add('hidden'); otpInput.focus(); }
+
+  otpSubmit.addEventListener('click', () => {
+    const v = otpInput.value || '';
+    if (v === OTP_PASSWORD) {
+      sessionStorage.setItem('er_auth', '1');
+      hideOtpModal();
+      requestNotificationPermission();
+      showToast('Authenticated');
+    } else {
+      otpError.classList.remove('hidden');
+    }
+  });
+
+  // Enter key on OTP input
+  otpInput.addEventListener('keydown', (e)=> { if (e.key === 'Enter') otpSubmit.click(); });
+
+  // On load: show modal if not authed
+  window.addEventListener('load', () => {
+    refreshProfileUI();
+    renderList();
+    updateRemainingPreview();
+    updateEthiopianPreview();
+    // If not authorized in this session, show OTP modal
+    if (!checkSessionAuth()) showOtpModal();
+    else {
+      // already authed -> request notification permission
+      requestNotificationPermission();
+      otpModal.style.display = 'none';
+    }
+  });
+
+  // optional: clicking outside OTP modal does not dismiss, to enforce password
+  otpModal.addEventListener('click', (ev) => { if (ev.target === otpModal) { /* block */ } });
+
+  // run a first reminder check after page load
+  setTimeout(checkRemindersNow, 2000);
+</script>
+</body>
+</html>
